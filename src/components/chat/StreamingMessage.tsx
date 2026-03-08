@@ -26,7 +26,7 @@ export const StreamingMessage: React.FC = () => {
               <span
                 key={i}
                 className="wave-letter"
-                style={{ animationDelay: `${i * 0.07}s` }}
+                style={{ animationDelay: `${i * 0.1}s` }}
               >
                 {char === ' ' ? '\u00A0' : char}
               </span>

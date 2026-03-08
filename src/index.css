@@ -67,11 +67,11 @@ body {
 }
 
 @keyframes wave {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-6px); }
 }
 
 .wave-letter {
   display: inline-block;
-  animation: wave 1s ease-in-out infinite;
+  animation: wave 1.2s ease-in-out infinite;
 }
