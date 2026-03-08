@@ -22,7 +22,7 @@ export const AppShell: React.FC = () => {
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
   const setSessions = useSessionStore((s) => s.setSessions);
   const setActiveSessionId = useSessionStore((s) => s.setActiveSessionId);
-  const defaultProviderId = useSettingsStore((s) => s.defaultProviderId);
+  const { setProviders, setDefaultProviderId, defaultProviderId } = useSettingsStore();
   const rightSidebarOpen = useUIStore((s) => s.rightSidebarOpen);
   const unlistenRef = useRef<UnlistenFn[]>([]);
 
@@ -70,23 +70,29 @@ export const AppShell: React.FC = () => {
   }, [setProjects, setActiveProjectId, setSessions, setActiveSessionId]);
 
   useEffect(() => {
+    invoke<{ id: string; name: string; model: string; isDefault: boolean }[]>('list_providers')
+      .then((ps) => {
+        setProviders(ps as Parameters<typeof setProviders>[0]);
+        const def = ps.find((p) => p.isDefault);
+        if (def) setDefaultProviderId(def.id);
+      })
+      .catch(console.error);
+  }, [setProviders, setDefaultProviderId]);
+
+  useEffect(() => {
     const setup = async () => {
       const unlistenToken = await listen<string>('chat-token', (event) => {
         appendStreamToken(event.payload);
       });
 
       const unlistenDone = await listen<string>('chat-done', () => {
-        const { streamingText } = useChatStore.getState();
-        const sessionId = useSessionStore.getState().activeSessionId ?? 'default';
-        const assistantMsg: Message = {
-          id: crypto.randomUUID(),
-          sessionId,
-          role: 'assistant',
-          content: streamingText,
-          createdAt: new Date().toISOString(),
-        };
-        addMessage(assistantMsg);
         clearStreaming();
+        const sessionId = useSessionStore.getState().activeSessionId;
+        if (sessionId) {
+          invoke<Message[]>('get_messages', { sessionId })
+            .then((msgs) => useChatStore.getState().setMessages(msgs))
+            .catch(console.error);
+        }
       });
 
       const unlistenError = await listen<string>('chat-error', (event) => {
@@ -112,10 +118,14 @@ export const AppShell: React.FC = () => {
   }, [activeSessionId, setMessages]);
 
   const handleSend = async (content: string) => {
-    const sessionId = activeSessionId ?? 'default';
+    if (!activeSessionId) {
+      console.warn('No active session — open a folder first');
+      return;
+    }
+
     const userMsg: Message = {
       id: crypto.randomUUID(),
-      sessionId,
+      sessionId: activeSessionId,
       role: 'user',
       content,
       createdAt: new Date().toISOString(),
@@ -125,7 +135,7 @@ export const AppShell: React.FC = () => {
 
     try {
       await invoke('send_message', {
-        sessionId,
+        sessionId: activeSessionId,
         content,
         providerId: defaultProviderId ?? null,
       });

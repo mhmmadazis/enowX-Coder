@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/select';
 import { useChatStore } from '@/stores/useChatStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useSessionStore } from '@/stores/useSessionStore';
 import { cn } from '@/lib/utils';
 
 interface ChatInputBarProps {
@@ -19,6 +20,7 @@ const MAX_HEIGHT = 200;
 
 export const ChatInputBar: React.FC<ChatInputBarProps> = ({ onSend }) => {
   const { isStreaming } = useChatStore();
+  const activeSessionId = useSessionStore((s) => s.activeSessionId);
   const { providers, defaultProviderId, setDefaultProviderId } = useSettingsStore();
   const [value, setValue] = React.useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -51,7 +53,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({ onSend }) => {
     }
   };
 
-  const canSend = value.trim().length > 0 && !isStreaming;
+  const canSend = value.trim().length > 0 && !isStreaming && !!activeSessionId;
 
   return (
     <div className="px-4 pb-4 pt-2">
@@ -68,7 +70,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({ onSend }) => {
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={isStreaming}
-          placeholder="How can I help you today?"
+          placeholder={activeSessionId ? "How can I help you today?" : "Open a folder to start chatting…"}
           rows={1}
           className={cn(
             'w-full resize-none bg-transparent px-4 pt-3 pb-2',
