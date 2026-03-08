@@ -1,4 +1,5 @@
 use tauri::{AppHandle, State};
+use tauri::ipc::Channel;
 
 use crate::{
     error::AppResult,
@@ -22,6 +23,7 @@ pub async fn send_message(
     content: String,
     provider_id: Option<String>,
     model_id: Option<String>,
+    on_token: Channel<String>,
     app_handle: AppHandle,
 ) -> AppResult<()> {
     chat_service::send_message(
@@ -30,6 +32,7 @@ pub async fn send_message(
         &content,
         provider_id.as_deref(),
         model_id.as_deref(),
+        on_token,
         &app_handle,
     )
     .await

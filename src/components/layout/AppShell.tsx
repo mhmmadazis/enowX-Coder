@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, Channel } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { LeftSidebar } from '@/components/layout/LeftSidebar';
 import { RightSidebar } from '@/components/layout/RightSidebar';
@@ -81,10 +81,6 @@ export const AppShell: React.FC = () => {
 
   useEffect(() => {
     const setup = async () => {
-      const unlistenToken = await listen<string>('chat-token', (event) => {
-        appendStreamToken(event.payload);
-      });
-
       const unlistenDone = await listen<string>('chat-done', () => {
         clearStreaming();
         const sessionId = useSessionStore.getState().activeSessionId;
@@ -100,7 +96,7 @@ export const AppShell: React.FC = () => {
         clearStreaming();
       });
 
-      unlistenRef.current = [unlistenToken, unlistenDone, unlistenError];
+      unlistenRef.current = [unlistenDone, unlistenError];
     };
 
     setup();
@@ -108,7 +104,7 @@ export const AppShell: React.FC = () => {
     return () => {
       unlistenRef.current.forEach((fn) => fn());
     };
-  }, [appendStreamToken, addMessage, clearStreaming]);
+  }, [clearStreaming]);
 
   useEffect(() => {
     if (!activeSessionId) return;
@@ -133,12 +129,18 @@ export const AppShell: React.FC = () => {
     addMessage(userMsg);
     setStreaming(true);
 
+    const onToken = new Channel<string>();
+    onToken.onmessage = (token) => {
+      appendStreamToken(token);
+    };
+
     try {
       await invoke('send_message', {
         sessionId: activeSessionId,
         content,
         providerId: defaultProviderId ?? null,
         modelId: selectedModelId ?? null,
+        onToken,
       });
     } catch (err) {
       console.error('send_message error:', err);

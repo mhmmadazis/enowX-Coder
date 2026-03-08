@@ -3,6 +3,7 @@ use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde_json::Value;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Emitter};
+use tauri::ipc::Channel;
 use uuid::Uuid;
 
 use crate::{
@@ -30,10 +31,12 @@ pub async fn send_message(
     content: &str,
     provider_id: Option<&str>,
     model_id: Option<&str>,
+    on_token: Channel<String>,
     app_handle: &AppHandle,
 ) -> AppResult<()> {
     let result =
-        send_message_inner(db, session_id, content, provider_id, model_id, app_handle).await;
+        send_message_inner(db, session_id, content, provider_id, model_id, on_token, app_handle)
+            .await;
     if let Err(ref error) = result {
         let _ = app_handle.emit("chat-error", error.to_string());
     }
@@ -46,6 +49,7 @@ async fn send_message_inner(
     content: &str,
     provider_id: Option<&str>,
     model_id: Option<&str>,
+    on_token: Channel<String>,
     app_handle: &AppHandle,
 ) -> AppResult<()> {
     let normalized = content.trim();
@@ -79,14 +83,14 @@ async fn send_message_inner(
     let model = model_id.unwrap_or(&provider.model);
 
     let assistant_output = if provider.provider_type == "anthropic" {
-        send_anthropic(history, model, provider.api_key.as_deref(), app_handle).await?
+        send_anthropic(history, model, provider.api_key.as_deref(), &on_token).await?
     } else {
         send_openai_compatible(
             &provider.base_url,
             model,
             provider.api_key.as_deref(),
             history,
-            app_handle,
+            &on_token,
         )
         .await?
     };
@@ -119,7 +123,7 @@ async fn send_openai_compatible(
     model: &str,
     api_key: Option<&str>,
     history: Vec<Message>,
-    app_handle: &AppHandle,
+    on_token: &Channel<String>,
 ) -> AppResult<String> {
     let client = reqwest::Client::new();
     let endpoint = format!("{}/chat/completions", base_url.trim_end_matches('/'));
@@ -151,14 +155,14 @@ async fn send_openai_compatible(
         return Err(AppError::Http(format!("{status}: {body}")));
     }
 
-    stream_openai_sse(response, app_handle).await
+    stream_openai_sse(response, on_token).await
 }
 
 async fn send_anthropic(
     history: Vec<Message>,
     model: &str,
     api_key: Option<&str>,
-    app_handle: &AppHandle,
+    on_token: &Channel<String>,
 ) -> AppResult<String> {
     let client = reqwest::Client::new();
 
@@ -199,12 +203,12 @@ async fn send_anthropic(
         return Err(AppError::Http(format!("Anthropic {status}: {body}")));
     }
 
-    stream_anthropic_sse(response, app_handle).await
+    stream_anthropic_sse(response, on_token).await
 }
 
 async fn stream_openai_sse(
     response: reqwest::Response,
-    app_handle: &AppHandle,
+    on_token: &Channel<String>,
 ) -> AppResult<String> {
     let mut stream = response.bytes_stream();
     let mut line_buffer = String::new();
@@ -220,14 +224,14 @@ async fn stream_openai_sse(
                 line.pop();
             }
 
-            if parse_openai_sse_line(&line, app_handle, &mut output)? {
+            if parse_openai_sse_line(&line, on_token, &mut output)? {
                 return Ok(output);
             }
         }
     }
 
     if !line_buffer.is_empty() {
-        parse_openai_sse_line(&line_buffer, app_handle, &mut output)?;
+        parse_openai_sse_line(&line_buffer, on_token, &mut output)?;
     }
 
     Ok(output)
@@ -235,7 +239,7 @@ async fn stream_openai_sse(
 
 fn parse_openai_sse_line(
     line: &str,
-    app_handle: &AppHandle,
+    on_token: &Channel<String>,
     output: &mut String,
 ) -> AppResult<bool> {
     let trimmed = line.trim();
@@ -261,7 +265,7 @@ fn parse_openai_sse_line(
         .and_then(Value::as_str)
     {
         output.push_str(token);
-        let _ = app_handle.emit("chat-token", token.to_string());
+        let _ = on_token.send(token.to_string());
     }
 
     Ok(false)
@@ -269,7 +273,7 @@ fn parse_openai_sse_line(
 
 async fn stream_anthropic_sse(
     response: reqwest::Response,
-    app_handle: &AppHandle,
+    on_token: &Channel<String>,
 ) -> AppResult<String> {
     let mut stream = response.bytes_stream();
     let mut line_buffer = String::new();
@@ -285,7 +289,7 @@ async fn stream_anthropic_sse(
                 line.pop();
             }
 
-            if parse_anthropic_sse_line(&line, app_handle, &mut output)? {
+            if parse_anthropic_sse_line(&line, on_token, &mut output)? {
                 return Ok(output);
             }
         }
@@ -296,7 +300,7 @@ async fn stream_anthropic_sse(
 
 fn parse_anthropic_sse_line(
     line: &str,
-    app_handle: &AppHandle,
+    on_token: &Channel<String>,
     output: &mut String,
 ) -> AppResult<bool> {
     let trimmed = line.trim();
@@ -332,7 +336,7 @@ fn parse_anthropic_sse_line(
                 .and_then(Value::as_str)
             {
                 output.push_str(token);
-                let _ = app_handle.emit("chat-token", token.to_string());
+                let _ = on_token.send(token.to_string());
             }
         }
         "message_stop" => return Ok(true),
