@@ -453,7 +453,7 @@ impl AgentRunner {
         max_iterations: usize,
         token_sink: &S,
     ) -> AppResult<String> {
-        let mut outputs = Vec::new();
+        let mut final_text = String::new();
 
         for _ in 0..max_iterations {
             let turn = if provider.provider_type == "anthropic" {
@@ -477,16 +477,13 @@ impl AgentRunner {
                 .await?
             };
 
-            if !turn.text.trim().is_empty() {
-                outputs.push(turn.text.trim().to_string());
-            }
-
             messages.push(ConversationMessage::assistant(
                 turn.text.clone(),
                 turn.tool_calls.clone(),
             ));
 
             if turn.tool_calls.is_empty() {
+                final_text = turn.text.trim().to_string();
                 break;
             }
 
@@ -509,7 +506,7 @@ impl AgentRunner {
             }
         }
 
-        Ok(outputs.join("\n"))
+        Ok(final_text)
     }
 
     async fn execute_tool_call(
@@ -782,17 +779,6 @@ impl AgentRunner {
             }
         }
 
-        if !line_buffer.is_empty() {
-            let _ = self.parse_openai_sse_line(
-                &line_buffer,
-                agent_run_id,
-                token_sink,
-                &mut output,
-                &mut pending_calls,
-                &mut stop_reason,
-            )?;
-        }
-
         finalize_llm_turn(output, pending_calls, stop_reason)
     }
 
@@ -924,17 +910,6 @@ impl AgentRunner {
                     return finalize_llm_turn(output, pending_calls, stop_reason);
                 }
             }
-        }
-
-        if !line_buffer.is_empty() {
-            let _ = self.parse_anthropic_sse_line(
-                &line_buffer,
-                agent_run_id,
-                token_sink,
-                &mut output,
-                &mut pending_calls,
-                &mut stop_reason,
-            )?;
         }
 
         finalize_llm_turn(output, pending_calls, stop_reason)

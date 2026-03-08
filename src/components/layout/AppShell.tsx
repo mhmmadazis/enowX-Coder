@@ -285,6 +285,15 @@ export const AppShell: React.FC = () => {
     const projectPath = activeProject?.path ?? '';
 
     if (selectedAgentType === 'orchestrator' || selectedAgentType === 'planner') {
+      const userMsg: Message = {
+        id: crypto.randomUUID(),
+        sessionId: activeSessionId,
+        role: 'user',
+        content,
+        createdAt: new Date().toISOString(),
+      };
+      addMessage(userMsg);
+
       const agentConfig = agentConfigs.find((c) => c.agentType === selectedAgentType);
       const agentProviderId = agentConfig?.providerId ?? defaultProviderId ?? null;
       const agentModelId = agentConfig?.modelId ?? selectedModelId ?? null;
