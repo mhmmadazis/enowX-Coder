@@ -87,6 +87,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({ onSend }) => {
 
   return (
     <div className="px-4 pb-4 pt-2">
+      <div className="max-w-3xl mx-auto w-full">
       <div
         className={cn(
           'relative flex flex-col rounded-2xl border transition-all duration-200',
@@ -192,6 +193,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({ onSend }) => {
       <p className="text-center text-[10px] text-[var(--text-subtle)] mt-2">
         Enter to send · Shift+Enter for newline
       </p>
+      </div>
     </div>
   );
 };

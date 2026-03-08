@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Sparkle } from '@phosphor-icons/react';
 import { useChatStore } from '@/stores/useChatStore';
 import { ChatMessage } from './ChatMessage';
@@ -7,10 +7,21 @@ import { StreamingMessage } from './StreamingMessage';
 export const ChatPanel: React.FC = () => {
   const { messages, isStreaming } = useChatStore();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [atBottom, setAtBottom] = useState(true);
+
+  const checkAtBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const threshold = 8;
+    setAtBottom(el.scrollTop + el.clientHeight >= el.scrollHeight - threshold);
+  }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isStreaming]);
+    if (atBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isStreaming, atBottom]);
 
   if (messages.length === 0 && !isStreaming) {
     return (
@@ -27,12 +38,30 @@ export const ChatPanel: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 space-y-6">
-      {messages.map((msg) => (
-        <ChatMessage key={msg.id} message={msg} />
-      ))}
-      <StreamingMessage />
-      <div ref={bottomRef} />
+    <div className="flex-1 relative overflow-hidden min-h-0">
+      <div
+        ref={scrollRef}
+        onScroll={checkAtBottom}
+        className="h-full overflow-y-auto custom-scrollbar py-6"
+      >
+        <div className="max-w-3xl mx-auto w-full px-4 flex flex-col gap-4">
+          {messages.map((msg) => (
+            <ChatMessage key={msg.id} message={msg} />
+          ))}
+          <StreamingMessage />
+          <div ref={bottomRef} />
+        </div>
+      </div>
+
+      {/* Fade overlay — only when at bottom */}
+      {atBottom && (
+        <div
+          className="absolute bottom-0 left-0 right-0 h-16 pointer-events-none"
+          style={{
+            background: 'linear-gradient(to bottom, transparent, var(--bg))',
+          }}
+        />
+      )}
     </div>
   );
 };

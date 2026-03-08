@@ -59,44 +59,45 @@ interface ChatMessageProps {
 export const ChatMessage = React.memo<ChatMessageProps>(({ message }) => {
   const isUser = message.role === 'user';
 
+  if (isUser) {
+    return (
+      <div className="flex justify-end">
+        <div
+          className={cn(
+            'px-4 py-3 rounded-xl text-sm leading-relaxed',
+            'bg-[var(--surface-3)] text-[var(--text)]',
+            'border border-[var(--border)]',
+            'max-w-[75%]'
+          )}
+          style={{ width: 'fit-content' }}
+        >
+          <p className="whitespace-pre-wrap">{message.content}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={cn('flex gap-3 max-w-4xl mx-auto', isUser ? 'justify-end' : 'justify-start')}>
-      {!isUser && (
-        <div className="w-8 h-8 rounded-lg bg-[var(--surface-3)] border border-[var(--border)] shrink-0 flex items-center justify-center text-[11px] font-bold text-white mt-1">
+    <div className="flex flex-col gap-1 w-full">
+      <div className="flex items-center gap-2 mb-1">
+        <div className="w-6 h-6 rounded-md bg-[var(--surface-3)] border border-[var(--border)] flex items-center justify-center text-[10px] font-bold text-white shrink-0">
           AI
         </div>
-      )}
-
-      <div
-        className={cn(
-          'px-4 py-3 rounded-2xl max-w-[80%] text-sm leading-relaxed',
-          isUser
-            ? 'bg-white text-black rounded-tr-sm'
-            : 'bg-[var(--surface-2)] text-[var(--text)] rounded-tl-sm border border-[var(--border)]'
-        )}
-      >
-        {isUser ? (
-          <p className="whitespace-pre-wrap">{message.content}</p>
-        ) : (
-          <div className="prose prose-invert prose-sm max-w-none">
-            <ReactMarkdown
-              rehypePlugins={[rehypeHighlight]}
-              components={{
-                code: CodeBlock as React.ComponentType<React.HTMLAttributes<HTMLElement>>,
-                pre: ({ children }) => <>{children}</>,
-              }}
-            >
-              {message.content}
-            </ReactMarkdown>
-          </div>
-        )}
+        <span className="text-[11px] text-[var(--text-subtle)] font-medium">Assistant</span>
       </div>
-
-      {isUser && (
-        <div className="w-8 h-8 rounded-full bg-[var(--surface-3)] border border-[var(--border)] shrink-0 flex items-center justify-center text-[11px] font-bold text-white mt-1">
-          U
+      <div className="w-full px-4 py-3 rounded-xl text-sm leading-relaxed bg-[var(--surface)] text-[var(--text)]">
+        <div className="prose prose-invert prose-sm max-w-none">
+          <ReactMarkdown
+            rehypePlugins={[rehypeHighlight]}
+            components={{
+              code: CodeBlock as React.ComponentType<React.HTMLAttributes<HTMLElement>>,
+              pre: ({ children }) => <>{children}</>,
+            }}
+          >
+            {message.content}
+          </ReactMarkdown>
         </div>
-      )}
+      </div>
     </div>
   );
 });

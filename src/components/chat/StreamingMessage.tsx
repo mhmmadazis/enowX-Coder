@@ -7,13 +7,16 @@ export const StreamingMessage: React.FC = () => {
   if (!isStreaming) return null;
 
   return (
-    <div className="flex gap-3 max-w-4xl mx-auto justify-start">
-      <div className="w-8 h-8 rounded-lg bg-[var(--surface-3)] border border-[var(--border)] shrink-0 flex items-center justify-center text-[11px] font-bold text-white mt-1">
-        AI
+    <div className="flex flex-col gap-1 w-full">
+      <div className="flex items-center gap-2 mb-1">
+        <div className="w-6 h-6 rounded-md bg-[var(--surface-3)] border border-[var(--border)] flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+          AI
+        </div>
+        <span className="text-[11px] text-[var(--text-subtle)] font-medium">Assistant</span>
       </div>
-      <div className="px-4 py-3 rounded-2xl rounded-tl-sm max-w-[80%] text-sm leading-relaxed bg-[var(--surface-2)] text-[var(--text)] border border-[var(--border)]">
+      <div className="w-full px-4 py-3 rounded-xl text-sm leading-relaxed bg-[var(--surface)] text-[var(--text)]">
         <span className="whitespace-pre-wrap">{streamingText}</span>
-        <span className="inline-block w-0.5 h-4 bg-white ml-0.5 align-middle" />
+        <span className="inline-block w-0.5 h-4 bg-white/70 ml-0.5 align-middle animate-pulse" />
       </div>
     </div>
   );
