@@ -14,7 +14,7 @@ export const RightSidebar: React.FC = () => {
   ];
 
   return (
-    <aside className="h-screen bg-[var(--surface)] border-l border-[var(--border)] flex flex-col w-[var(--sidebar-width-right)]">
+    <aside className="h-full bg-[var(--surface)] border-l border-[var(--border)] flex flex-col w-[var(--sidebar-width-right)]">
       <div className="flex border-b border-[var(--border)]">
         {tabs.map((tab) => (
           <button

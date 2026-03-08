@@ -89,7 +89,7 @@ export const AppShell: React.FC = () => {
     <div className="app-grid bg-[var(--bg)] text-[var(--text)]">
       <LeftSidebar />
 
-      <main className="flex flex-col overflow-hidden">
+      <main className="flex flex-col overflow-hidden min-h-0">
         <ChatHeader />
         <ChatPanel />
         <ChatInputBar onSend={handleSend} />
