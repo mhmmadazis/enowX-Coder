@@ -12,13 +12,17 @@
   "app": {
     "windows": [
       {
-        "title": "enowx-coder",
-        "width": 800,
-        "height": 600
+        "title": "enowX Coder",
+        "width": 1280,
+        "height": 800,
+        "resizable": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true
+      }
     }
   },
   "bundle": {

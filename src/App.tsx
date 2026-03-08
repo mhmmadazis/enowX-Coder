@@ -1,50 +1,64 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useEffect, useState } from 'react';
+import { AppShell } from '@/components/layout/AppShell';
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useSessionStore } from '@/stores/useSessionStore';
+import { useProjectStore } from '@/stores/useProjectStore';
+import { generateId } from '@/lib/utils';
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const providers = useSettingsStore((s) => s.providers);
+  const [onboardingDone, setOnboardingDone] = useState(() => {
+    return localStorage.getItem('onboarding-done') === 'true';
+  });
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  const addSession = useSessionStore((s) => s.addSession);
+  const setActiveSessionId = useSessionStore((s) => s.setActiveSessionId);
+  const activeProjectId = useProjectStore((s) => s.activeProjectId);
+
+  const handleOnboardingComplete = () => {
+    localStorage.setItem('onboarding-done', 'true');
+    setOnboardingDone(true);
+    const session = {
+      id: generateId(),
+      projectId: activeProjectId ?? 'default',
+      title: 'New Chat',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    addSession(session);
+    setActiveSessionId(session.id);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+
+      if (meta && e.key === 'n') {
+        e.preventDefault();
+        const session = {
+          id: generateId(),
+          projectId: activeProjectId ?? 'default',
+          title: 'New Chat',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        addSession(session);
+        setActiveSessionId(session.id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeProjectId, addSession, setActiveSessionId]);
+
+  const showOnboarding = !onboardingDone || providers.length === 0;
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <>
+      <AppShell />
+      {showOnboarding && <OnboardingWizard onComplete={handleOnboardingComplete} />}
+    </>
   );
 }
 
