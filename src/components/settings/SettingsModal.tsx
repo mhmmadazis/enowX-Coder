@@ -27,7 +27,7 @@ export const SettingsModal: React.FC = () => {
       onClick={() => setSettingsOpen(false)}
     >
       <div
-        className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden shadow-2xl shadow-black/50"
+        className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-6xl h-[64vh] flex flex-col overflow-hidden shadow-2xl shadow-black/50"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-1">
