@@ -19,6 +19,8 @@ import {
   XCircle,
   CircleNotch,
   WarningCircle,
+  Brain,
+  Wrench,
 } from '@phosphor-icons/react';
 
 interface AgentRunCardProps {
@@ -45,6 +47,8 @@ export function AgentRunCard({ run, allRuns }: AgentRunCardProps) {
   const Icon = AGENT_ICONS[run.agentType as AgentType] || Robot;
   
   const children = allRuns.filter(r => r.parentAgentRunId === run.id);
+  const hasToolActivity = (run.toolCalls?.length ?? 0) > 0;
+  const latestTool = hasToolActivity ? run.toolCalls[run.toolCalls.length - 1] : null;
 
   const getStatusBadge = () => {
     switch (run.status) {
@@ -84,14 +88,38 @@ export function AgentRunCard({ run, allRuns }: AgentRunCardProps) {
         </div>
 
         <div className="p-3 space-y-3 text-[var(--text-muted)]">
-          {run.streamingText && (
-            <div className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed">
-              {run.streamingText}
-              {run.status === 'running' && <span className="animate-pulse">|</span>}
+          {run.status === 'running' && !hasToolActivity && (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-3)]/40 px-3 py-2.5">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-[var(--text-muted)]">
+                <Brain size={12} weight="duotone" />
+                <span>Thinking</span>
+              </div>
+              <div className="mt-2 text-[12px] text-[var(--text-muted)] leading-relaxed">
+                {run.streamingText.trim().length > 0
+                  ? 'Analyzing task context and preparing next action...'
+                  : 'Planning next step...'}
+              </div>
             </div>
           )}
-          
-          {!run.streamingText && run.status === 'running' && (
+
+          {run.status === 'running' && hasToolActivity && latestTool && (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-3)]/40 px-3 py-2.5">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-[var(--text-muted)]">
+                <Wrench size={12} weight="duotone" />
+                <span>Tool Execution</span>
+              </div>
+              <div className="mt-2 text-[12px] text-[var(--text)] font-mono">
+                {latestTool.toolName}
+              </div>
+              <div className="mt-1 flex items-center space-x-1 text-[var(--text-subtle)] h-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          )}
+
+          {!run.streamingText && run.status === 'running' && !hasToolActivity && (
             <div className="flex items-center space-x-1 text-[var(--text-subtle)] h-4">
               <div className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '0ms' }} />
               <div className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -99,7 +127,7 @@ export function AgentRunCard({ run, allRuns }: AgentRunCardProps) {
             </div>
           )}
 
-          {run.status === 'completed' && run.output && !run.streamingText && (
+          {run.status === 'completed' && run.output && !run.streamingText && run.parentAgentRunId !== null && (
             <div className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed">
               {run.output}
             </div>

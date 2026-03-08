@@ -61,7 +61,11 @@ export const ChatPanel: React.FC = () => {
     );
   }
 
-  const topLevelRuns = agentRuns.filter(r => r.parentAgentRunId === null);
+  const topLevelRuns = agentRuns.filter(
+    (r) =>
+      r.parentAgentRunId === null
+      && (r.status === 'pending' || r.status === 'running' || r.status === 'failed')
+  );
   const combinedItems = [
     ...messages.map(m => ({ type: 'message' as const, data: m, date: new Date(m.createdAt).getTime() })),
     ...topLevelRuns.map(r => ({ type: 'agent' as const, data: r, date: new Date(r.createdAt).getTime() }))
