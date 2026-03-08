@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Sparkle } from '@phosphor-icons/react';
+import { Dot, Sparkle } from '@phosphor-icons/react';
 import { useChatStore } from '@/stores/useChatStore';
 import { useAgentStore } from '@/stores/useAgentStore';
 import { ChatMessage } from './ChatMessage';
 import { StreamingMessage } from './StreamingMessage';
 import { AgentRunCard } from './AgentRunCard';
 import { Message, AgentRunWithTools } from '@/types';
+import { TimelineEvent } from './TimelineEvent';
 
 export const ChatPanel: React.FC = () => {
   const { messages, isStreaming, streamingText } = useChatStore();
@@ -64,8 +65,8 @@ export const ChatPanel: React.FC = () => {
 
   const topLevelRuns = agentRuns.filter((r) => r.parentAgentRunId === null);
   const combinedItems = [
-    ...messages.map(m => ({ type: 'message' as const, data: m, date: new Date(m.createdAt).getTime() })),
-    ...topLevelRuns.map(r => ({ type: 'agent' as const, data: r, date: new Date(r.createdAt).getTime() }))
+    ...messages.map((m) => ({ type: 'message' as const, data: m, date: new Date(m.createdAt).getTime() })),
+    ...topLevelRuns.map((r) => ({ type: 'agent' as const, data: r, date: new Date(r.createdAt).getTime() })),
   ].sort((a, b) => a.date - b.date);
 
   return (
@@ -78,10 +79,23 @@ export const ChatPanel: React.FC = () => {
         <div className="max-w-3xl mx-auto w-full px-4 flex flex-col gap-4">
           {combinedItems.map((item) => {
             if (item.type === 'message') {
-              return <ChatMessage key={item.data.id} message={item.data as Message} />;
-            } else {
-              return <AgentRunCard key={item.data.id} run={item.data as AgentRunWithTools} allRuns={agentRuns} />;
+              const message = item.data as Message;
+              if (message.role === 'assistant') {
+                return (
+                  <TimelineEvent
+                    key={message.id}
+                    showConnector={true}
+                    icon={<Dot size={14} weight="fill" className="text-white" />}
+                    contentClassName="pr-1"
+                  >
+                    <ChatMessage message={message} />
+                  </TimelineEvent>
+                );
+              }
+              return <ChatMessage key={message.id} message={message} />;
             }
+
+            return <AgentRunCard key={item.data.id} run={item.data as AgentRunWithTools} />;
           })}
           <StreamingMessage />
           <div ref={bottomRef} />
