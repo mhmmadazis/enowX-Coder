@@ -1,7 +1,7 @@
 import React from 'react';
 import { ProjectSwitcher } from '@/components/sidebar/ProjectSwitcher';
 import { SessionList } from '@/components/sidebar/SessionList';
-import { Plus, SidebarSimple } from '@phosphor-icons/react';
+import { Plus, SidebarSimple, GearSix } from '@phosphor-icons/react';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { useProjectStore } from '@/stores/useProjectStore';
 import { generateId } from '@/lib/utils';
@@ -56,16 +56,13 @@ export const LeftSidebar: React.FC = () => {
         <SessionList />
       </div>
 
-      <div className="mt-auto p-4 border-t border-[var(--border)] bg-[var(--surface-2)]/30 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-[var(--surface-3)] border border-[var(--border)] flex items-center justify-center font-bold text-xs text-white">
-            JD
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate text-[var(--text)]">User Developer</p>
-            <p className="text-[10px] text-[var(--text-muted)] truncate">Pro Plan</p>
-          </div>
-        </div>
+      <div className="p-3 border-t border-[var(--border)]">
+        <button
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-white/5 transition-colors text-sm"
+        >
+          <GearSix size={16} />
+          <span>Settings</span>
+        </button>
       </div>
     </aside>
   );
