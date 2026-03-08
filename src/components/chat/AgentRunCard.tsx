@@ -1,4 +1,7 @@
 import { useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
 import { AgentRunWithTools, AGENT_LABELS, AgentType } from '@/types';
 import { cn } from '@/lib/utils';
 import {
@@ -46,22 +49,30 @@ export function AgentRunCard({ run, allRuns }: AgentRunCardProps) {
   const Icon = AGENT_ICONS[run.agentType as AgentType] || Robot;
   const children = allRuns.filter((r) => r.parentAgentRunId === run.id);
   const hasToolActivity = (run.toolCalls?.length ?? 0) > 0;
+  const normalizedStream = run.streamingText.trim();
 
   const thinkingText = useMemo(() => {
-    if (run.status === 'failed') return run.error ?? 'Execution failed.';
-    if (run.status === 'running' && !hasToolActivity) {
-      return run.streamingText.trim().length > 0
-        ? `Analyzing: ${run.streamingText.trim()}`
-        : 'Planning next action...';
+    let captured = normalizedStream;
+
+    if (run.status === 'completed' && run.output && captured) {
+      const outputTrim = run.output.trim();
+      if (outputTrim.length > 0 && captured.endsWith(outputTrim)) {
+        captured = captured.slice(0, captured.length - outputTrim.length).trim();
+      }
     }
+
+    if (captured.length > 0) return captured;
+
+    if (run.status === 'failed') return run.error ?? 'Execution failed.';
+    if (run.status === 'running' && !hasToolActivity) return 'Planning next action...';
     if (run.status === 'running' && hasToolActivity) {
       return 'Context prepared. Proceeding to tool execution.';
     }
-    if (run.status === 'completed') {
-      return 'Reasoning phase completed.';
-    }
+
+    if (run.status === 'completed') return 'No explicit reasoning trace emitted by the model.';
+
     return 'Pending execution...';
-  }, [run.status, run.streamingText, run.error, hasToolActivity]);
+  }, [run.status, run.output, run.error, hasToolActivity, normalizedStream]);
 
   return (
     <div
@@ -149,8 +160,13 @@ export function AgentRunCard({ run, allRuns }: AgentRunCardProps) {
                 {resultOpen ? <CaretDown size={12} /> : <CaretRight size={12} />}
               </button>
               {resultOpen && (
-                <div className="px-3 pb-3 text-[12px] leading-relaxed text-[var(--text)] whitespace-pre-wrap">
-                  {run.status === 'failed' ? run.error : run.output}
+                <div className="px-3 pb-3 ai-prose ai-prose-readable text-[var(--text)]">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeHighlight]}
+                  >
+                    {run.status === 'failed' ? (run.error ?? '') : (run.output ?? '')}
+                  </ReactMarkdown>
                 </div>
               )}
             </section>

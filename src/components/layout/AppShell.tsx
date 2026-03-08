@@ -33,7 +33,6 @@ export const AppShell: React.FC = () => {
     setAgentRuns,
     updateAgentRun,
     appendAgentToken,
-    clearAgentStreaming,
     setAgentConfigs,
     setPendingPermission,
     pendingPermission,
@@ -216,7 +215,6 @@ export const AppShell: React.FC = () => {
         'agent-done',
         (event) => {
           const { agentRunId, output } = event.payload;
-          clearAgentStreaming(agentRunId);
           updateAgentRun(agentRunId, {
             status: 'completed',
             output,
@@ -229,7 +227,6 @@ export const AppShell: React.FC = () => {
         'agent-error',
         (event) => {
           const { agentRunId, error } = event.payload;
-          clearAgentStreaming(agentRunId);
           updateAgentRun(agentRunId, {
             status: 'failed',
             error,
@@ -281,7 +278,6 @@ export const AppShell: React.FC = () => {
     addAgentRun,
     appendAgentToken,
     updateAgentRun,
-    clearAgentStreaming,
     setPendingPermission,
   ]);
 
