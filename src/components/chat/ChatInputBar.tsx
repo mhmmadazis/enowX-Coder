@@ -57,9 +57,9 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({ onSend }) => {
     <div className="px-4 pb-4 pt-2">
       <div
         className={cn(
-          'relative flex flex-col rounded-2xl border transition-colors',
+          'relative flex flex-col rounded-2xl border transition-all duration-200',
           'bg-[var(--surface-2)] border-[var(--border)]',
-          'focus-within:border-white/20'
+          'focus-within:border-white/15 focus-within:shadow-[0_0_0_3px_rgba(255,255,255,0.06),0_0_20px_rgba(255,255,255,0.04)]'
         )}
       >
         <textarea
@@ -74,11 +74,10 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({ onSend }) => {
             'w-full resize-none bg-transparent px-4 pt-4 pb-2',
             'text-sm leading-relaxed text-[var(--text)]',
             'placeholder:text-[var(--text-subtle)]',
-            'focus:outline-none',
             'custom-scrollbar',
             isStreaming && 'opacity-50 cursor-not-allowed'
           )}
-          style={{ minHeight: '52px', maxHeight: `${MAX_HEIGHT}px` }}
+          style={{ minHeight: '52px', maxHeight: `${MAX_HEIGHT}px`, outline: 'none' }}
         />
 
         <div className="flex items-center justify-between px-3 pb-3 pt-1 gap-2">
