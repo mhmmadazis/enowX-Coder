@@ -61,3 +61,22 @@ pub async fn delete_provider(state: State<'_, AppState>, id: String) -> AppResul
 pub async fn set_default_provider(state: State<'_, AppState>, id: String) -> AppResult<()> {
     provider_service::set_default_provider(state.pool(), &id).await
 }
+
+#[tauri::command]
+pub async fn list_models(
+    state: State<'_, AppState>,
+    provider_id: String,
+) -> AppResult<Vec<String>> {
+    let provider = crate::services::provider_service::get_provider_for_chat(
+        state.pool(),
+        Some(&provider_id),
+    )
+    .await?;
+
+    crate::services::model_service::list_models(
+        &provider.provider_type,
+        &provider.base_url,
+        provider.api_key.as_deref(),
+    )
+    .await
+}

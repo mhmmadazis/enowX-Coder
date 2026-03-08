@@ -30,6 +30,7 @@ export interface Provider {
   apiKey?: string;
   model: string;
   isDefault: boolean;
+  isBuiltin: boolean;
   createdAt: string;
   updatedAt: string;
 }

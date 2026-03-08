@@ -7,5 +7,5 @@ pub mod session;
 pub use agent_run::AgentRun;
 pub use message::Message;
 pub use project::Project;
-pub use provider::Provider;
+pub use provider::{fixed_base_url, Provider};
 pub use session::Session;

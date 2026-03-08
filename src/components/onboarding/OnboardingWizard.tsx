@@ -43,6 +43,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
       apiKey: apiKey || undefined,
       model: model || preset.model,
       isDefault: true,
+      isBuiltin: false,
       createdAt: now,
       updatedAt: now,
     };
