@@ -40,6 +40,7 @@ pub fn run() -> Result<(), AppError> {
             commands::provider::upsert_provider_model,
             commands::provider::delete_provider_model,
             commands::agent::list_agent_runs,
+            commands::agent::list_tool_calls,
             commands::agent::run_agent,
             commands::agent::cancel_agent,
             commands::agent::get_agent_config,

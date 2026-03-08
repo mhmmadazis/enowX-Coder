@@ -188,12 +188,12 @@ export const ChatMessage = React.memo<ChatMessageProps>(({ message }) => {
 
   if (isUser) {
     return (
-      <div className="flex justify-end">
+      <div className="flex justify-end pr-1">
         <div
           className={cn(
-            'px-4 py-3 rounded-xl text-[15px] leading-relaxed',
+            'px-4 py-3.5 rounded-2xl text-[15px] leading-relaxed',
             'bg-[var(--surface-3)] text-[var(--text)]',
-            'border border-[var(--border)]',
+            'border border-[var(--border-strong)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
             'max-w-[75%]'
           )}
           style={{ width: 'fit-content' }}
@@ -207,7 +207,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(({ message }) => {
   const segments = parseAssistantSegments(message.content);
 
   return (
-    <div className="flex flex-col gap-2 w-full">
+    <div className="flex flex-col gap-2.5 w-full">
       <div className="flex items-center gap-2 mb-1">
         <div className="w-6 h-6 rounded-md bg-[var(--surface-3)] border border-[var(--border)] flex items-center justify-center text-[10px] font-bold text-white shrink-0">
           AI

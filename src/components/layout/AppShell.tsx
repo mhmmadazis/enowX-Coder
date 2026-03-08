@@ -30,6 +30,7 @@ export const AppShell: React.FC = () => {
   const rightSidebarOpen = useUIStore((s) => s.rightSidebarOpen);
   const {
     addAgentRun,
+    setAgentRuns,
     updateAgentRun,
     appendAgentToken,
     clearAgentStreaming,
@@ -289,7 +290,29 @@ export const AppShell: React.FC = () => {
     invoke<Message[]>('get_messages', { sessionId: activeSessionId })
       .then(setMessages)
       .catch(console.error);
-  }, [activeSessionId, setMessages]);
+
+    invoke<AgentRunWithTools[]>('list_agent_runs', { sessionId: activeSessionId })
+      .then(async (runs) => {
+        const hydratedRuns = await Promise.all(
+          runs.map(async (run) => {
+            const toolCalls = await invoke<ToolCall[]>('list_tool_calls', { agentRunId: run.id }).catch(
+              () => [] as ToolCall[]
+            );
+
+            return {
+              ...run,
+              toolCalls,
+              streamingText: '',
+              parentAgentRunId: run.parentAgentRunId ?? null,
+              projectPath: run.projectPath ?? null,
+            } as AgentRunWithTools;
+          })
+        );
+
+        setAgentRuns(hydratedRuns);
+      })
+      .catch(console.error);
+  }, [activeSessionId, setMessages, setAgentRuns]);
 
   const handleSend = async (content: string) => {
     if (!activeSessionId) {

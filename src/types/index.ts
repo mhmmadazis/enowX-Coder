@@ -58,6 +58,8 @@ export interface AgentRun {
   startedAt?: string;
   completedAt?: string;
   createdAt: string;
+  parentAgentRunId?: string | null;
+  projectPath?: string | null;
 }
 
 export type AgentType =

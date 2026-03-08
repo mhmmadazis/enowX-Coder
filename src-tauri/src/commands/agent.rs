@@ -4,7 +4,7 @@ use tauri::{AppHandle, State};
 use crate::{
     agents::runner::AgentRunner,
     error::AppResult,
-    models::{AgentConfig, AgentRun},
+    models::{AgentConfig, AgentRun, ToolCall},
     services::agent_service,
     state::AppState,
 };
@@ -15,6 +15,14 @@ pub async fn list_agent_runs(
     session_id: String,
 ) -> AppResult<Vec<AgentRun>> {
     agent_service::list_agent_runs(state.pool(), &session_id).await
+}
+
+#[tauri::command]
+pub async fn list_tool_calls(
+    state: State<'_, AppState>,
+    agent_run_id: String,
+) -> AppResult<Vec<ToolCall>> {
+    agent_service::list_tool_calls(state.pool(), &agent_run_id).await
 }
 
 #[tauri::command]
