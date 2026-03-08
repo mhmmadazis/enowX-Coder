@@ -94,7 +94,7 @@ export const ProviderSettings: React.FC = () => {
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-[#e5e5e5] text-black text-xs font-semibold transition-colors"
           >
             <Plus size={14} weight="bold" />
             Add Provider
@@ -117,7 +117,7 @@ export const ProviderSettings: React.FC = () => {
             className={cn(
               'flex items-center gap-3 p-3 rounded-xl border transition-colors',
               p.id === defaultProviderId
-                ? 'border-[var(--accent)]/40 bg-[var(--accent)]/5'
+                ? 'border-white/20 bg-white/[0.03]'
                 : 'border-[var(--border)] bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/60'
             )}
           >
@@ -125,7 +125,7 @@ export const ProviderSettings: React.FC = () => {
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-[var(--text)] truncate">{p.name}</span>
                 {p.id === defaultProviderId && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent)]/20 text-[var(--accent)] font-bold uppercase tracking-wider">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-white font-bold uppercase tracking-wider">
                     Default
                   </span>
                 )}
@@ -140,8 +140,8 @@ export const ProviderSettings: React.FC = () => {
                 className={cn(
                   'p-1.5 rounded-lg transition-colors',
                   p.id === defaultProviderId
-                    ? 'text-yellow-400'
-                    : 'text-[var(--text-muted)] hover:text-yellow-400 hover:bg-[var(--surface-2)]'
+                    ? 'text-white'
+                    : 'text-[var(--text-muted)] hover:text-white hover:bg-white/5'
                 )}
                 title="Set as default"
               >
@@ -155,7 +155,7 @@ export const ProviderSettings: React.FC = () => {
               </button>
               <button
                 onClick={() => removeProvider(p.id)}
-                className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-white hover:bg-white/5 transition-colors"
               >
                 <Trash size={14} />
               </button>
@@ -168,7 +168,7 @@ export const ProviderSettings: React.FC = () => {
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="p-4 rounded-xl border border-[var(--accent)]/30 bg-[var(--surface-2)]/40 space-y-3"
+          className="p-4 rounded-xl border border-white/10 bg-[var(--surface-2)]/40 space-y-3"
         >
           <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">
             {editingId ? 'Edit Provider' : 'New Provider'}
@@ -196,7 +196,7 @@ export const ProviderSettings: React.FC = () => {
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="My OpenAI"
-                className="w-full px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] transition-colors"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-white/40 transition-colors"
               />
             </div>
             <div className="col-span-2">
@@ -206,7 +206,7 @@ export const ProviderSettings: React.FC = () => {
                 value={form.baseUrl}
                 onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
                 placeholder="https://api.openai.com/v1"
-                className="w-full px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] transition-colors"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-white/40 transition-colors"
               />
             </div>
             <div>
@@ -216,7 +216,7 @@ export const ProviderSettings: React.FC = () => {
                 value={form.model}
                 onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
                 placeholder="gpt-4o"
-                className="w-full px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] transition-colors"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-white/40 transition-colors"
               />
             </div>
             <div>
@@ -226,7 +226,7 @@ export const ProviderSettings: React.FC = () => {
                 value={form.apiKey}
                 onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
                 placeholder="sk-... (optional)"
-                className="w-full px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] transition-colors"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-white/40 transition-colors"
               />
             </div>
           </div>
@@ -242,7 +242,7 @@ export const ProviderSettings: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-[#e5e5e5] text-black text-xs font-semibold transition-colors"
             >
               <Check size={14} />
               {editingId ? 'Save Changes' : 'Add Provider'}

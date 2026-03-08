@@ -23,8 +23,8 @@ export const SessionList: React.FC = () => {
           className={cn(
             "group flex items-center gap-2 px-3 py-2 rounded-md transition-colors cursor-pointer text-sm",
             activeSessionId === session.id 
-              ? "bg-[var(--accent)] text-white" 
-              : "hover:bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text)]"
+              ? "bg-white/10 text-white border-l-2 border-white" 
+              : "hover:bg-white/5 text-[var(--text-muted)] hover:text-white"
           )}
           onClick={() => setActiveSessionId(session.id)}
         >

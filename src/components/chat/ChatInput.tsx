@@ -64,7 +64,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend }) => {
         className={cn(
           'shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all',
           value.trim() && !isStreaming
-            ? 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white shadow-lg shadow-purple-500/20 active:scale-95'
+            ? 'bg-white hover:bg-[#e5e5e5] text-black active:scale-95'
             : 'bg-[var(--surface-2)] text-[var(--text-muted)] cursor-not-allowed opacity-50'
         )}
       >

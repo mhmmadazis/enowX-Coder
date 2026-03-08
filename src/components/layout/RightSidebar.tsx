@@ -23,14 +23,14 @@ export const RightSidebar: React.FC = () => {
             className={cn(
               "flex-1 flex flex-col items-center gap-1 py-3 transition-all relative group",
               activeTab === tab.id 
-                ? "text-[var(--accent)]" 
+                ? "text-white" 
                 : "text-[var(--text-muted)] hover:text-[var(--text)]"
             )}
           >
             <tab.icon size={20} weight={activeTab === tab.id ? "fill" : "regular"} />
             <span className="text-[10px] font-bold uppercase tracking-wider">{tab.label}</span>
             {activeTab === tab.id && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] shadow-[0_-4px_10px_rgba(124,58,237,0.5)]" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white" />
             )}
           </button>
         ))}
@@ -45,7 +45,7 @@ export const RightSidebar: React.FC = () => {
             </h3>
             <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 text-center space-y-2">
               <div className="w-10 h-10 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center mx-auto">
-                <TerminalWindow size={20} weight="duotone" className="text-[var(--accent)]" />
+                <TerminalWindow size={20} weight="duotone" className="text-white" />
               </div>
               <p className="text-xs font-medium">No agents running</p>
               <p className="text-[10px] text-[var(--text-muted)]">Spawn an agent from the chat to see progress here.</p>
@@ -64,7 +64,7 @@ export const RightSidebar: React.FC = () => {
                 <div key={skill} className="p-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/50 transition-colors cursor-pointer group">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-mono text-[var(--text)]">{skill}</span>
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-[var(--text-subtle)]" />
                   </div>
                 </div>
               ))}

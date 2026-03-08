@@ -69,7 +69,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
       <div className="w-full max-w-md mx-4 bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl shadow-black/50 overflow-hidden">
         <div className="h-1 bg-[var(--surface-2)]">
           <div
-            className="h-full bg-[var(--accent)] transition-all duration-500"
+            className="h-full bg-white transition-all duration-500"
             style={{ width: step === 'welcome' ? '0%' : step === 'provider' ? '33%' : step === 'project' ? '66%' : '100%' }}
           />
         </div>
@@ -77,8 +77,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
         <div className="p-8">
           {step === 'welcome' && (
             <div className="text-center space-y-6">
-              <div className="w-16 h-16 rounded-2xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 flex items-center justify-center mx-auto">
-                <Sparkle size={32} weight="duotone" className="text-[var(--accent)]" />
+              <div className="w-16 h-16 rounded-2xl bg-[var(--surface-3)] border border-[var(--border)] flex items-center justify-center mx-auto">
+                <Sparkle size={32} weight="duotone" className="text-white" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold mb-2">Welcome to enowX Coder</h1>
@@ -88,7 +88,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
               </div>
               <button
                 onClick={() => setStep('provider')}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-semibold transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white hover:bg-[#e5e5e5] text-black font-semibold transition-colors"
               >
                 Get Started <ArrowRight size={18} weight="bold" />
               </button>
@@ -110,11 +110,11 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
                     className={cn(
                       'p-3 rounded-xl border text-left transition-all',
                       selectedPreset === i
-                        ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--text)]'
+                        ? 'border-white bg-white/5 text-white'
                         : 'border-[var(--border)] hover:border-[var(--accent)]/50 text-[var(--text-muted)]'
                     )}
                   >
-                    <Robot size={18} weight={selectedPreset === i ? 'fill' : 'regular'} className={selectedPreset === i ? 'text-[var(--accent)] mb-1' : 'mb-1'} />
+                    <Robot size={18} weight={selectedPreset === i ? 'fill' : 'regular'} className={selectedPreset === i ? 'text-white mb-1' : 'mb-1'} />
                     <p className="text-xs font-semibold">{p.label}</p>
                   </button>
                 ))}
@@ -158,7 +158,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
 
               <button
                 onClick={handleProviderNext}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-semibold transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white hover:bg-[#e5e5e5] text-black font-semibold transition-colors"
               >
                 Continue <ArrowRight size={18} weight="bold" />
               </button>
@@ -187,7 +187,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
 
               <button
                 onClick={handleProjectNext}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-semibold transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white hover:bg-[#e5e5e5] text-black font-semibold transition-colors"
               >
                 Continue <ArrowRight size={18} weight="bold" />
               </button>
@@ -196,8 +196,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
 
           {step === 'done' && (
             <div className="text-center space-y-6">
-              <div className="w-16 h-16 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center mx-auto">
-                <Check size={32} weight="bold" className="text-green-400" />
+              <div className="w-16 h-16 rounded-full bg-[var(--surface-3)] border border-[var(--border)] flex items-center justify-center mx-auto">
+                <Check size={32} weight="bold" className="text-white" />
               </div>
               <div>
                 <h2 className="text-xl font-bold mb-2">You're all set!</h2>
@@ -207,7 +207,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
               </div>
               <button
                 onClick={onComplete}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-semibold transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white hover:bg-[#e5e5e5] text-black font-semibold transition-colors"
               >
                 Start Coding <Sparkle size={18} weight="fill" />
               </button>

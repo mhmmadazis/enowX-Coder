@@ -27,10 +27,10 @@ export const LeftSidebar: React.FC = () => {
     <aside className="h-screen bg-[var(--surface)] border-r border-[var(--border)] flex flex-col w-[var(--sidebar-width-left)]">
       <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-[var(--accent)] flex items-center justify-center shadow-lg shadow-purple-500/20">
+          <div className="w-8 h-8 rounded-lg bg-[var(--surface-3)] border border-[var(--border)] flex items-center justify-center">
             <SidebarSimple size={18} weight="fill" className="text-white" />
           </div>
-          <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">enowX</span>
+          <span className="font-bold text-lg tracking-tight text-white">enowX</span>
         </div>
       </div>
 
@@ -41,7 +41,7 @@ export const LeftSidebar: React.FC = () => {
       <div className="px-3 pb-2">
         <button
           onClick={handleNewSession}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] transition-all text-white text-sm font-semibold shadow-lg shadow-purple-500/10 active:scale-[0.98]"
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-white hover:bg-[#e5e5e5] transition-all text-black text-sm font-semibold active:scale-[0.98]"
         >
           <Plus size={16} weight="bold" />
           <span>New Chat</span>
@@ -58,7 +58,7 @@ export const LeftSidebar: React.FC = () => {
 
       <div className="mt-auto p-4 border-t border-[var(--border)] bg-[var(--surface-2)]/30 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-xs text-white ring-2 ring-[var(--surface)]">
+          <div className="w-8 h-8 rounded-full bg-[var(--surface-3)] border border-[var(--border)] flex items-center justify-center font-bold text-xs text-white">
             JD
           </div>
           <div className="flex-1 min-w-0">

@@ -16,8 +16,8 @@ export const ProjectSwitcher: React.FC = () => {
         }}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-6 h-6 rounded-md bg-[var(--accent)]/10 flex items-center justify-center border border-[var(--accent)]/20 shadow-sm shadow-purple-500/10">
-            <FolderSimple size={14} weight="fill" className="text-[var(--accent)]" />
+          <div className="w-6 h-6 rounded-md bg-[var(--surface-3)] flex items-center justify-center border border-[var(--border)]">
+            <FolderSimple size={14} weight="fill" className="text-[var(--text-muted)]" />
           </div>
           <span className="text-xs font-bold truncate tracking-tight text-[var(--text)]">
             {activeProject ? activeProject.name : 'Select Project'}
