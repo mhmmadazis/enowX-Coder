@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useProjectStore } from '@/stores/useProjectStore';
 import { useSessionStore } from '@/stores/useSessionStore';
-import { FolderOpen, Plus, CircleNotch } from '@phosphor-icons/react';
+import { FolderOpen, CircleNotch } from '@phosphor-icons/react';
 import { Project, Session } from '@/types';
 
 export const ProjectSwitcher: React.FC = () => {
@@ -45,7 +45,6 @@ export const ProjectSwitcher: React.FC = () => {
         <FolderOpen size={15} />
       )}
       <span className="text-xs">{loading ? 'Opening…' : 'Open folder'}</span>
-      {!loading && <Plus size={12} className="ml-auto opacity-50" />}
     </button>
   );
 };
