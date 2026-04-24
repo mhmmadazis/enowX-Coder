@@ -25,6 +25,18 @@ const SYNTHESIS_REACT_ITERATIONS: usize = 8;
 const LANGUAGE_GUARD: &str =
     "IMPORTANT: Reply using the same language as the user's latest message. If user writes Indonesian, answer in Indonesian. Never switch to another language unless the user explicitly asks you to.";
 
+/// Short hint appended when flux is enabled but user didn't ask for visuals (~50 tokens vs ~4500)
+const PREVIEW_HINT: &str = "You can create interactive visualizations (charts, diagrams, widgets) by outputting a fenced code block with the language tag `html:preview`. The preview iframe has a full design system pre-loaded with CSS variables, SVG color ramp classes, and light/dark mode support. Use this when the user asks for any visual or interactive content.";
+
+/// Keywords that trigger the full PREVIEW_GUIDE injection
+const VISUAL_KEYWORDS: &[&str] = &[
+    "chart", "diagram", "graph", "visuali", "svg", "plot", "widget",
+    "mockup", "wireframe", "flowchart", "draw", "gambar", "buat grafik",
+    "bikin chart", "bikin diagram", "buatkan", "tampilkan", "tabel",
+    "html:preview", "interactive", "infographic", "dashboard", "canvas",
+    "pie chart", "bar chart", "line chart", "perbandingan", "statistik",
+];
+
 const PREVIEW_GUIDE: &str = r#"INTERACTIVE PREVIEW — VISUAL CREATION SYSTEM
 
 When the user asks for a visualization, diagram, chart, interactive demo, UI mockup, or any visual/interactive HTML content, output it directly in your response as a fenced code block with the language tag `html:preview`. Do NOT use write_file — the app renders it as a live interactive preview inline. Only use write_file when the user explicitly asks to save a file on disk.
@@ -586,8 +598,14 @@ impl AgentRunner {
         let model = ctx.model_id.unwrap_or(&provider.model);
         let tool_executor = ToolExecutor::new(PathBuf::from(ctx.project_path));
 
+        // Solusi 1: Lazy PREVIEW_GUIDE — only inject full guide when user asks for visuals
         let system_content = if ctx.flux_enabled {
-            format!("{}\n\n{}\n\n{}", system_prompt, LANGUAGE_GUARD, PREVIEW_GUIDE)
+            if needs_full_preview_guide(ctx.task) {
+                format!("{}\n\n{}\n\n{}", system_prompt, LANGUAGE_GUARD, PREVIEW_GUIDE)
+            } else {
+                // Mini hint only (~50 tokens vs ~4500)
+                format!("{}\n\n{}\n\n{}", system_prompt, LANGUAGE_GUARD, PREVIEW_HINT)
+            }
         } else {
             format!("{}\n\n{}", system_prompt, LANGUAGE_GUARD)
         };
@@ -722,7 +740,11 @@ impl AgentRunner {
         let tool_executor = ToolExecutor::new(PathBuf::from(ctx.project_path));
 
         let system_content = if ctx.flux_enabled {
-            format!("{}\n\n{}\n\n{}", system_prompt, LANGUAGE_GUARD, PREVIEW_GUIDE)
+            if needs_full_preview_guide(ctx.task) {
+                format!("{}\n\n{}\n\n{}", system_prompt, LANGUAGE_GUARD, PREVIEW_GUIDE)
+            } else {
+                format!("{}\n\n{}\n\n{}", system_prompt, LANGUAGE_GUARD, PREVIEW_HINT)
+            }
         } else {
             format!("{}\n\n{}", system_prompt, LANGUAGE_GUARD)
         };
@@ -819,9 +841,12 @@ impl AgentRunner {
                     )
                     .await?;
 
+                // Solusi 3: Truncate large tool results to reduce token accumulation
+                let truncated_output = truncate_tool_result(&execution.output);
+
                 messages.push(ConversationMessage::tool(
                     &tool_call.id,
-                    &execution.output,
+                    &truncated_output,
                     execution.is_error,
                 ));
             }
@@ -1101,16 +1126,34 @@ impl AgentRunner {
         token_sink: &S,
     ) -> AppResult<LLMTurn> {
         let (system, anthropic_messages) = to_anthropic_messages(messages)?;
+
+        // Solusi 2: Prompt caching — system prompt + tools cached for 90% cost reduction
+        let tools_with_cache = {
+            let mut tools = anthropic_tool_definitions();
+            // Mark the last tool with cache_control so the entire tools array is cached
+            if let Some(last_tool) = tools.last_mut() {
+                last_tool["cache_control"] = json!({"type": "ephemeral"});
+            }
+            tools
+        };
+
         let mut payload = json!({
             "model": model,
             "max_tokens": 8096,
             "messages": anthropic_messages,
-            "tools": anthropic_tool_definitions(),
+            "tools": tools_with_cache,
             "stream": true,
         });
 
+        // System prompt as cached content block array (not plain string)
         if let Some(system_prompt) = system {
-            payload["system"] = Value::String(system_prompt);
+            payload["system"] = json!([
+                {
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"}
+                }
+            ]);
         }
 
         let client = reqwest::Client::new();
@@ -1118,6 +1161,7 @@ impl AgentRunner {
             .post("https://api.anthropic.com/v1/messages")
             .header(CONTENT_TYPE, "application/json")
             .header("anthropic-version", "2023-06-01")
+            .header("anthropic-beta", "prompt-caching-2024-07-31")
             .json(&payload);
 
         if let Some(key) = api_key.as_deref().filter(|k| !k.trim().is_empty()) {
@@ -1682,6 +1726,35 @@ fn summarize_html_widget(html: &str) -> String {
     }
 
     summary
+}
+
+/// Truncate tool results to prevent token bloat in ReAct loop.
+/// File contents and large outputs are capped; short results pass through unchanged.
+const MAX_TOOL_RESULT_CHARS: usize = 3000;
+
+fn truncate_tool_result(output: &str) -> String {
+    if output.len() <= MAX_TOOL_RESULT_CHARS {
+        return output.to_string();
+    }
+
+    // Keep first and last portions for context
+    let head_size = MAX_TOOL_RESULT_CHARS * 2 / 3; // ~2000 chars from start
+    let tail_size = MAX_TOOL_RESULT_CHARS / 3;      // ~1000 chars from end
+
+    let head = &output[..head_size];
+    let tail = &output[output.len() - tail_size..];
+    let omitted = output.len() - head_size - tail_size;
+
+    format!(
+        "{}\n\n… [{} chars omitted] …\n\n{}",
+        head, omitted, tail
+    )
+}
+
+/// Check if the user's message contains keywords that need the full PREVIEW_GUIDE
+fn needs_full_preview_guide(task: &str) -> bool {
+    let lower = task.to_lowercase();
+    VISUAL_KEYWORDS.iter().any(|kw| lower.contains(kw))
 }
 
 fn finalize_llm_turn(
