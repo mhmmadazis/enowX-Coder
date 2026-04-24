@@ -132,8 +132,17 @@ async fn send_message_inner(
     // Use caller-supplied model_id if provided, otherwise fall back to provider default
     let model = model_id.unwrap_or(&provider.model);
 
-    let assistant_output = if provider.provider_type == "anthropic" {
-        send_anthropic(history, model, provider.api_key.as_deref(), &on_token, &cancel_token).await?
+    let assistant_output = if provider.provider_type == "anthropic" || provider.provider_type == "enowxlabs" {
+        send_anthropic(
+            history,
+            model,
+            provider.api_key.as_deref(),
+            &provider.provider_type,
+            &provider.base_url,
+            &on_token,
+            &cancel_token,
+        )
+        .await?
     } else {
         send_openai_compatible(
             &provider.base_url,
@@ -251,6 +260,8 @@ async fn send_anthropic(
     history: Vec<Message>,
     model: &str,
     api_key: Option<&str>,
+    provider_type: &str,
+    base_url: &str,
     on_token: &Channel<String>,
     cancel_token: &CancellationToken,
 ) -> AppResult<String> {
@@ -259,11 +270,29 @@ async fn send_anthropic(
     let (system_msgs, chat_msgs): (Vec<_>, Vec<_>) =
         history.iter().partition(|m| m.role == "system");
 
-    let messages: Vec<Value> = chat_msgs
+    // Build messages as Anthropic content-block format for cache_control support
+    let mut messages: Vec<Value> = chat_msgs
         .iter()
         .filter(|m| m.role == "user" || m.role == "assistant")
-        .map(|m| serde_json::json!({ "role": m.role, "content": m.content }))
+        .map(|m| {
+            serde_json::json!({
+                "role": m.role,
+                "content": [{ "type": "text", "text": m.content }]
+            })
+        })
         .collect();
+
+    // Prompt caching: mark last user message with cache_control so the entire
+    // conversation prefix is cached across turns (like Claude Desktop does).
+    if let Some(last_msg) = messages.last_mut() {
+        if last_msg.get("role").and_then(Value::as_str) == Some("user") {
+            if let Some(content) = last_msg.get_mut("content").and_then(Value::as_array_mut) {
+                if let Some(last_block) = content.last_mut() {
+                    last_block["cache_control"] = serde_json::json!({"type": "ephemeral"});
+                }
+            }
+        }
+    }
 
     let mut payload = serde_json::json!({
         "model": model,
@@ -305,15 +334,27 @@ async fn send_anthropic(
         }
     ]);
 
+    // Resolve endpoint: anthropic direct or enowxlabs/other Anthropic-compatible gateway
+    let endpoint = if provider_type == "anthropic" {
+        "https://api.anthropic.com/v1/messages".to_string()
+    } else {
+        format!("{}/messages", base_url.trim_end_matches('/').trim_end_matches("/v1"))
+    };
+
     let mut request = client
-        .post("https://api.anthropic.com/v1/messages")
+        .post(&endpoint)
         .header(CONTENT_TYPE, "application/json")
         .header("anthropic-version", "2023-06-01")
         .header("anthropic-beta", "prompt-caching-2024-07-31")
         .json(&payload);
 
+    // Auth: x-api-key for Anthropic direct, Bearer for gateways
     if let Some(key) = api_key.filter(|k| !k.trim().is_empty()) {
-        request = request.header("x-api-key", key);
+        if provider_type == "anthropic" {
+            request = request.header("x-api-key", key);
+        } else {
+            request = request.header(AUTHORIZATION, format!("Bearer {key}"));
+        }
     }
 
     let response = request.send().await?;
@@ -534,7 +575,7 @@ pub async fn generate_title(
         "content": "Generate a short title for the conversation above."
     }));
 
-    let title = if provider.provider_type == "anthropic" {
+    let title = if provider.provider_type == "anthropic" || provider.provider_type == "enowxlabs" {
         generate_title_anthropic(&provider, model, &messages).await?
     } else {
         generate_title_openai(&provider, model, &messages).await?
@@ -630,15 +671,27 @@ async fn generate_title_anthropic(
         "temperature": 0.3,
     });
 
+    // Resolve endpoint: anthropic direct or enowxlabs/other gateway
+    let endpoint = if provider.provider_type == "anthropic" {
+        "https://api.anthropic.com/v1/messages".to_string()
+    } else {
+        format!("{}/messages", provider.base_url.trim_end_matches('/').trim_end_matches("/v1"))
+    };
+
     let client = reqwest::Client::new();
     let mut request = client
-        .post("https://api.anthropic.com/v1/messages")
+        .post(&endpoint)
         .header(CONTENT_TYPE, "application/json")
         .header("anthropic-version", "2023-06-01")
         .json(&payload);
 
+    // Auth: x-api-key for Anthropic direct, Bearer for gateways
     if let Some(key) = provider.api_key.as_deref().filter(|k| !k.trim().is_empty()) {
-        request = request.header("x-api-key", key);
+        if provider.provider_type == "anthropic" {
+            request = request.header("x-api-key", key);
+        } else {
+            request = request.header(AUTHORIZATION, format!("Bearer {key}"));
+        }
     }
 
     let response = request.send().await?;

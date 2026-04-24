@@ -794,9 +794,11 @@ impl AgentRunner {
                 return Err(AppError::Cancelled);
             }
 
-            let turn = if provider.provider_type == "anthropic" {
+            let turn = if provider.provider_type == "anthropic" || provider.provider_type == "enowxlabs" {
                 self.send_anthropic_with_tools(
+                    &provider.base_url,
                     &provider.api_key,
+                    &provider.provider_type,
                     model,
                     messages,
                     agent_run_id,
@@ -1117,20 +1119,33 @@ impl AgentRunner {
             .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn send_anthropic_with_tools<S: TokenSink + Sync>(
         &self,
+        base_url: &str,
         api_key: &Option<String>,
+        provider_type: &str,
         model: &str,
         messages: &[ConversationMessage],
         agent_run_id: &str,
         token_sink: &S,
     ) -> AppResult<LLMTurn> {
-        let (system, anthropic_messages) = to_anthropic_messages(messages)?;
+        let (system, mut anthropic_messages) = to_anthropic_messages(messages)?;
 
-        // Solusi 2: Prompt caching — system prompt + tools cached for 90% cost reduction
+        // Prompt caching: mark last user message with cache_control (like Claude Desktop)
+        if let Some(last_msg) = anthropic_messages.last_mut() {
+            if last_msg.get("role").and_then(Value::as_str) == Some("user") {
+                if let Some(content) = last_msg.get_mut("content").and_then(Value::as_array_mut) {
+                    if let Some(last_block) = content.last_mut() {
+                        last_block["cache_control"] = json!({"type": "ephemeral"});
+                    }
+                }
+            }
+        }
+
+        // Prompt caching: tools cached
         let tools_with_cache = {
             let mut tools = anthropic_tool_definitions();
-            // Mark the last tool with cache_control so the entire tools array is cached
             if let Some(last_tool) = tools.last_mut() {
                 last_tool["cache_control"] = json!({"type": "ephemeral"});
             }
@@ -1145,7 +1160,7 @@ impl AgentRunner {
             "stream": true,
         });
 
-        // System prompt as cached content block array (not plain string)
+        // System prompt as cached content block array
         if let Some(system_prompt) = system {
             payload["system"] = json!([
                 {
@@ -1156,19 +1171,31 @@ impl AgentRunner {
             ]);
         }
 
+        // Resolve endpoint: anthropic direct or enowxlabs proxy
+        let endpoint = if provider_type == "anthropic" {
+            "https://api.anthropic.com/v1/messages".to_string()
+        } else {
+            // enowxlabs or other Anthropic-compatible gateway
+            format!("{}/messages", base_url.trim_end_matches('/').trim_end_matches("/v1"))
+        };
+
         let client = reqwest::Client::new();
         let mut request = client
-            .post("https://api.anthropic.com/v1/messages")
+            .post(&endpoint)
             .header(CONTENT_TYPE, "application/json")
             .header("anthropic-version", "2023-06-01")
-            .header("anthropic-beta", "prompt-caching-2024-07-31")
-            .json(&payload);
+            .header("anthropic-beta", "prompt-caching-2024-07-31");
 
+        // Auth: x-api-key for Anthropic direct, Bearer for gateways
         if let Some(key) = api_key.as_deref().filter(|k| !k.trim().is_empty()) {
-            request = request.header("x-api-key", key);
+            if provider_type == "anthropic" {
+                request = request.header("x-api-key", key);
+            } else {
+                request = request.header(AUTHORIZATION, format!("Bearer {key}"));
+            }
         }
 
-        let response = request.send().await?;
+        let response = request.json(&payload).send().await?;
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
