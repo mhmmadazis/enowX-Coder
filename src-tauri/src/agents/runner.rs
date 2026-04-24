@@ -794,7 +794,7 @@ impl AgentRunner {
                 return Err(AppError::Cancelled);
             }
 
-            let turn = if provider.provider_type == "anthropic" || provider.provider_type == "enowxlabs" {
+            let turn = if provider.uses_anthropic_format() {
                 self.send_anthropic_with_tools(
                     &provider.base_url,
                     &provider.api_key,
@@ -1171,12 +1171,14 @@ impl AgentRunner {
             ]);
         }
 
-        // Resolve endpoint: anthropic direct or enowxlabs proxy
+        // Resolve endpoint: same logic as chat_service::send_anthropic
         let endpoint = if provider_type == "anthropic" {
             "https://api.anthropic.com/v1/messages".to_string()
-        } else {
-            // enowxlabs or other Anthropic-compatible gateway
+        } else if provider_type == "enowxlabs" {
             format!("{}/messages", base_url.trim_end_matches('/').trim_end_matches("/v1"))
+        } else {
+            // Custom gateway: preserve full base_url path (e.g. /v1/messages)
+            format!("{}/messages", base_url.trim_end_matches('/'))
         };
 
         let client = reqwest::Client::new();
@@ -1202,8 +1204,44 @@ impl AgentRunner {
             return Err(AppError::Http(format!("Anthropic {status}: {body}")));
         }
 
-        self.stream_anthropic_tool_sse(response, agent_run_id, token_sink)
-            .await
+        let turn = self
+            .stream_anthropic_tool_sse(response, agent_run_id, token_sink)
+            .await?;
+
+        // Fallback: some gateways return message_start → message_stop without
+        // any content_block events when streaming certain models.  When that
+        // happens, retry the request with `stream: false` and parse the full
+        // response synchronously.
+        if turn.text.is_empty() && turn.tool_calls.is_empty() {
+            log::warn!("anthropic stream returned empty — retrying non-streaming");
+            payload["stream"] = json!(false);
+
+            let mut retry_req = client
+                .post(&endpoint)
+                .header(CONTENT_TYPE, "application/json")
+                .header("anthropic-version", "2023-06-01")
+                .json(&payload);
+
+            if let Some(key) = api_key.as_deref().filter(|k| !k.trim().is_empty()) {
+                if provider_type == "anthropic" {
+                    retry_req = retry_req.header("x-api-key", key);
+                } else {
+                    retry_req = retry_req.header(AUTHORIZATION, format!("Bearer {key}"));
+                }
+            }
+
+            let retry_resp = retry_req.send().await?;
+            if !retry_resp.status().is_success() {
+                let status = retry_resp.status();
+                let body = retry_resp.text().await.unwrap_or_default();
+                return Err(AppError::Http(format!("Anthropic non-stream {status}: {body}")));
+            }
+
+            let body: Value = retry_resp.json().await?;
+            return parse_anthropic_non_stream_response(&body, agent_run_id, token_sink, &self.app_handle);
+        }
+
+        Ok(turn)
     }
 
     async fn stream_openai_tool_sse<S: TokenSink + Sync>(
@@ -1363,6 +1401,9 @@ impl AgentRunner {
         let mut output = String::new();
         let mut stop_reason: Option<String> = None;
         let mut pending_calls: HashMap<usize, StreamingToolCall> = HashMap::new();
+        // Track the most recent `event:` line so we can fall back to it when
+        // the JSON payload omits the top-level `"type"` field (some gateways).
+        let mut current_event = String::new();
 
         while let Some(chunk) = stream.next().await {
             line_buffer.push_str(&String::from_utf8_lossy(&chunk?));
@@ -1376,6 +1417,7 @@ impl AgentRunner {
 
                 let should_stop = self.parse_anthropic_sse_line(
                     &line,
+                    &mut current_event,
                     agent_run_id,
                     token_sink,
                     &mut output,
@@ -1396,6 +1438,7 @@ impl AgentRunner {
     fn parse_anthropic_sse_line<S: TokenSink + Sync>(
         &self,
         line: &str,
+        current_event: &mut String,
         agent_run_id: &str,
         token_sink: &S,
         output: &mut String,
@@ -1408,7 +1451,9 @@ impl AgentRunner {
         }
 
         if let Some(event_name) = trimmed.strip_prefix("event:") {
-            if event_name.trim() == "message_stop" {
+            let event_name = event_name.trim();
+            *current_event = event_name.to_string();
+            if event_name == "message_stop" {
                 return Ok(true);
             }
             return Ok(false);
@@ -1424,7 +1469,12 @@ impl AgentRunner {
             Err(_) => return Ok(false),
         };
 
-        let event_type = value.get("type").and_then(Value::as_str).unwrap_or_default();
+        // Prefer `"type"` from JSON payload; fall back to the preceding
+        // `event:` line when the gateway strips it.
+        let event_type = value
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or(current_event.as_str());
 
         match event_type {
             "content_block_start" => {
@@ -1559,6 +1609,51 @@ struct StreamingToolCall {
     id: String,
     name: String,
     arguments: String,
+}
+
+/// Parse a non-streaming Anthropic Messages API response into an `LLMTurn`.
+///
+/// Used as a fallback when the gateway returns an empty stream (some proxies
+/// don't support streaming for certain models).
+fn parse_anthropic_non_stream_response<S: TokenSink + Sync>(
+    body: &Value,
+    agent_run_id: &str,
+    token_sink: &S,
+    app_handle: &tauri::AppHandle,
+) -> AppResult<LLMTurn> {
+    let mut text = String::new();
+    let mut tool_calls = Vec::new();
+
+    if let Some(content) = body.get("content").and_then(Value::as_array) {
+        for block in content {
+            let block_type = block.get("type").and_then(Value::as_str).unwrap_or("");
+            match block_type {
+                "text" => {
+                    if let Some(t) = block.get("text").and_then(Value::as_str) {
+                        text.push_str(t);
+                        // Send tokens to UI so the user sees the response
+                        token_sink.send(t);
+                        let _ = app_handle.emit(
+                            "agent-token",
+                            AgentTokenEvent {
+                                agent_run_id: agent_run_id.to_string(),
+                                token: t.to_string(),
+                            },
+                        );
+                    }
+                }
+                "tool_use" => {
+                    let id = block.get("id").and_then(Value::as_str).unwrap_or("").to_string();
+                    let name = block.get("name").and_then(Value::as_str).unwrap_or("").to_string();
+                    let input = block.get("input").cloned().unwrap_or(Value::Object(Default::default()));
+                    tool_calls.push(ParsedToolCall { id, name, input });
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Ok(LLMTurn { text, tool_calls })
 }
 
 #[derive(Debug, Clone)]

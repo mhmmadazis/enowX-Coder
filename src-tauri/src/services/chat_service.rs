@@ -40,6 +40,129 @@ pub async fn get_messages(db: &SqlitePool, session_id: &str) -> AppResult<Vec<Me
     Ok(messages)
 }
 
+/// Return a trimmed conversation window suitable for sending to the LLM.
+///
+/// Applies the same sliding-window + token-budget strategy used by the agent
+/// runner so that the chat path doesn't blow up token usage on long sessions.
+///
+/// Rules:
+///   - Keep at most the last `MAX_HISTORY_PAIRS` user/assistant exchanges.
+///   - Strip `html:preview` fenced blocks from assistant messages (huge, not
+///     useful as context).
+///   - Truncate individual messages that exceed per-role char limits.
+///   - Stop accumulating once the total char budget is reached.
+fn trim_history_for_llm(history: &[Message]) -> Vec<Message> {
+    const MAX_HISTORY_PAIRS: usize = 20;
+    const MAX_TOTAL_CHARS: usize = 32_000; // ≈ 8 K tokens
+    const MAX_USER_MSG_CHARS: usize = 2_000;
+    const MAX_ASSISTANT_MSG_CHARS: usize = 4_000;
+
+    // Separate system messages (always kept) from chat messages
+    let system_msgs: Vec<&Message> = history.iter().filter(|m| m.role == "system").collect();
+    let chat_msgs: Vec<&Message> = history.iter().filter(|m| m.role != "system").collect();
+
+    // Sliding window: keep only the most recent N*2 chat messages
+    let window_start = chat_msgs.len().saturating_sub(MAX_HISTORY_PAIRS * 2);
+    let windowed = &chat_msgs[window_start..];
+
+    let mut result: Vec<Message> = Vec::with_capacity(system_msgs.len() + windowed.len());
+    let mut total_chars: usize = 0;
+
+    // Always include system messages first (they're tiny)
+    for msg in &system_msgs {
+        total_chars += msg.content.len();
+        result.push((*msg).clone());
+    }
+
+    for msg in windowed {
+        if total_chars >= MAX_TOTAL_CHARS {
+            break;
+        }
+
+        let cleaned = if msg.role == "assistant" {
+            strip_preview_blocks_chat(&msg.content)
+        } else {
+            msg.content.clone()
+        };
+
+        let max_len = if msg.role == "user" {
+            MAX_USER_MSG_CHARS
+        } else {
+            MAX_ASSISTANT_MSG_CHARS
+        };
+
+        let truncated = if cleaned.len() > max_len {
+            let cut = &cleaned[..max_len];
+            let last_space = cut.rfind(' ').unwrap_or(max_len);
+            format!("{}… [truncated]", &cleaned[..last_space])
+        } else {
+            cleaned
+        };
+
+        total_chars += truncated.len();
+
+        result.push(Message {
+            id: msg.id.clone(),
+            session_id: msg.session_id.clone(),
+            role: msg.role.clone(),
+            content: truncated,
+            created_at: msg.created_at.clone(),
+        });
+    }
+
+    result
+}
+
+/// Strip ```html:preview … ``` fenced blocks from assistant output.
+/// These are rendered widgets that can be thousands of tokens and add no
+/// conversational value when sent back as context.
+fn strip_preview_blocks_chat(content: &str) -> String {
+    let mut result = String::with_capacity(content.len());
+    let mut chars = content.char_indices().peekable();
+    let fence_tag = "```html:preview";
+
+    while let Some(&(i, _)) = chars.peek() {
+        if content[i..].starts_with(fence_tag) {
+            // Skip past the opening fence line
+            while let Some(&(_, c)) = chars.peek() {
+                chars.next();
+                if c == '\n' {
+                    break;
+                }
+            }
+            // Skip until closing ```
+            let mut found_close = false;
+            while let Some(&(j, _)) = chars.peek() {
+                if content[j..].starts_with("```") {
+                    // consume the closing ```
+                    for _ in 0..3 {
+                        chars.next();
+                    }
+                    // consume rest of line
+                    while let Some(&(_, c)) = chars.peek() {
+                        chars.next();
+                        if c == '\n' {
+                            break;
+                        }
+                    }
+                    found_close = true;
+                    break;
+                }
+                chars.next();
+            }
+            result.push_str("[interactive preview]");
+            if !found_close {
+                break;
+            }
+        } else {
+            let (_, c) = chars.next().unwrap();
+            result.push(c);
+        }
+    }
+
+    result
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn send_message(
     db: &SqlitePool,
@@ -127,12 +250,32 @@ async fn send_message_inner(
         )));
     }
 
-    let history = get_messages(db, session_id).await?;
+    let raw_history = get_messages(db, session_id).await?;
+    let history = trim_history_for_llm(&raw_history);
+
+    // Debug: log context size so token bloat is easy to spot
+    let total_chars: usize = history.iter().map(|m| m.content.len()).sum();
+    let est_tokens = total_chars / 4; // rough estimate: 1 token ≈ 4 chars
+    log::debug!(
+        "chat context: {} msgs (raw {}), ~{} chars (~{} tokens)",
+        history.len(),
+        raw_history.len(),
+        total_chars,
+        est_tokens,
+    );
 
     // Use caller-supplied model_id if provided, otherwise fall back to provider default
     let model = model_id.unwrap_or(&provider.model);
 
-    let assistant_output = if provider.provider_type == "anthropic" || provider.provider_type == "enowxlabs" {
+    log::info!(
+        "chat route: provider={} type={} api_format={} → {}",
+        provider.name,
+        provider.provider_type,
+        provider.api_format,
+        if provider.uses_anthropic_format() { "anthropic" } else { "openai" },
+    );
+
+    let assistant_output = if provider.uses_anthropic_format() {
         send_anthropic(
             history,
             model,
@@ -334,12 +477,31 @@ async fn send_anthropic(
         }
     ]);
 
-    // Resolve endpoint: anthropic direct or enowxlabs/other Anthropic-compatible gateway
+    // Resolve endpoint for Anthropic-format requests.
+    //
+    // - Anthropic direct: always use the canonical URL.
+    // - enowxlabs built-in: base_url ends with /v1 → strip it, append /messages
+    //   (enowxlabs gateway expects /messages at the root).
+    // - Custom gateways: keep the base_url as-is and append /messages.
+    //   If the user stored "http://host:port/v1" we keep /v1 so the final
+    //   endpoint is "http://host:port/v1/messages" — most Anthropic-compatible
+    //   proxies (e.g. LiteLLM, Claude Desktop gateway) expect this.
     let endpoint = if provider_type == "anthropic" {
         "https://api.anthropic.com/v1/messages".to_string()
+    } else if provider_type == "enowxlabs" {
+        // enowxlabs own gateway: strip /v1 suffix
+        format!(
+            "{}/messages",
+            base_url
+                .trim_end_matches('/')
+                .trim_end_matches("/v1")
+        )
     } else {
-        format!("{}/messages", base_url.trim_end_matches('/').trim_end_matches("/v1"))
+        // Custom / third-party gateway: preserve the full base_url path
+        format!("{}/messages", base_url.trim_end_matches('/'))
     };
+
+    log::info!("anthropic endpoint: {} (base_url={}, provider_type={})", endpoint, base_url, provider_type);
 
     let mut request = client
         .post(&endpoint)
@@ -364,7 +526,51 @@ async fn send_anthropic(
         return Err(AppError::Http(format!("Anthropic {status}: {body}")));
     }
 
-    stream_anthropic_sse(response, on_token, cancel_token).await
+    let output = stream_anthropic_sse(response, on_token, cancel_token).await?;
+
+    // Fallback: some gateways return message_start → message_stop without any
+    // content_block events for certain models.  Retry non-streaming.
+    if output.is_empty() {
+        log::warn!("anthropic chat stream returned empty — retrying non-streaming");
+        payload["stream"] = serde_json::json!(false);
+
+        let mut retry_req = client
+            .post(&endpoint)
+            .header(CONTENT_TYPE, "application/json")
+            .header("anthropic-version", "2023-06-01")
+            .json(&payload);
+
+        if let Some(key) = api_key.filter(|k| !k.trim().is_empty()) {
+            if provider_type == "anthropic" {
+                retry_req = retry_req.header("x-api-key", key);
+            } else {
+                retry_req = retry_req.header(AUTHORIZATION, format!("Bearer {key}"));
+            }
+        }
+
+        let retry_resp = retry_req.send().await?;
+        if !retry_resp.status().is_success() {
+            let status = retry_resp.status();
+            let body = retry_resp.text().await.unwrap_or_default();
+            return Err(AppError::Http(format!("Anthropic non-stream {status}: {body}")));
+        }
+
+        let body: Value = retry_resp.json().await?;
+        if let Some(text) = body
+            .get("content")
+            .and_then(Value::as_array)
+            .and_then(|arr| arr.first())
+            .and_then(|block| block.get("text"))
+            .and_then(Value::as_str)
+        {
+            let _ = on_token.send(text.to_string());
+            return Ok(text.to_string());
+        }
+
+        return Ok(String::new());
+    }
+
+    Ok(output)
 }
 
 async fn stream_openai_sse(
@@ -454,6 +660,10 @@ async fn stream_anthropic_sse(
     let mut stream = response.bytes_stream();
     let mut line_buffer = String::new();
     let mut output = String::new();
+    // Track the most recent `event:` line so we can use it when parsing the
+    // subsequent `data:` line.  Some gateways omit the `"type"` field from
+    // the JSON payload, so we fall back to the SSE event name.
+    let mut current_event = String::new();
 
     loop {
         tokio::select! {
@@ -472,7 +682,7 @@ async fn stream_anthropic_sse(
                                 line.pop();
                             }
 
-                            if parse_anthropic_sse_line(&line, on_token, &mut output)? {
+                            if parse_anthropic_sse_line(&line, &mut current_event, on_token, &mut output)? {
                                 return Ok(output);
                             }
                         }
@@ -487,8 +697,14 @@ async fn stream_anthropic_sse(
     Ok(output)
 }
 
+/// Parse a single SSE line from an Anthropic-format stream.
+///
+/// `current_event` carries the most recent `event:` value across calls so that
+/// the `data:` handler can fall back to it when the JSON payload lacks a
+/// top-level `"type"` field (common with third-party gateways / proxies).
 fn parse_anthropic_sse_line(
     line: &str,
+    current_event: &mut String,
     on_token: &Channel<String>,
     output: &mut String,
 ) -> AppResult<bool> {
@@ -497,14 +713,17 @@ fn parse_anthropic_sse_line(
         return Ok(false);
     }
 
+    // ── event: line ──────────────────────────────────────────────────
     if let Some(event) = trimmed.strip_prefix("event:") {
         let event = event.trim();
+        *current_event = event.to_string();
         if event == "message_stop" {
             return Ok(true);
         }
         return Ok(false);
     }
 
+    // ── data: line ───────────────────────────────────────────────────
     let Some(payload) = trimmed.strip_prefix("data:") else {
         return Ok(false);
     };
@@ -515,7 +734,12 @@ fn parse_anthropic_sse_line(
         Err(_) => return Ok(false),
     };
 
-    let event_type = value.get("type").and_then(Value::as_str).unwrap_or("");
+    // Prefer `"type"` from the JSON payload; fall back to the preceding
+    // `event:` line when the gateway strips it.
+    let event_type = value
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or(current_event.as_str());
 
     match event_type {
         "content_block_delta" => {
@@ -575,7 +799,7 @@ pub async fn generate_title(
         "content": "Generate a short title for the conversation above."
     }));
 
-    let title = if provider.provider_type == "anthropic" || provider.provider_type == "enowxlabs" {
+    let title = if provider.uses_anthropic_format() {
         generate_title_anthropic(&provider, model, &messages).await?
     } else {
         generate_title_openai(&provider, model, &messages).await?
@@ -671,11 +895,13 @@ async fn generate_title_anthropic(
         "temperature": 0.3,
     });
 
-    // Resolve endpoint: anthropic direct or enowxlabs/other gateway
+    // Resolve endpoint: same logic as send_anthropic
     let endpoint = if provider.provider_type == "anthropic" {
         "https://api.anthropic.com/v1/messages".to_string()
-    } else {
+    } else if provider.provider_type == "enowxlabs" {
         format!("{}/messages", provider.base_url.trim_end_matches('/').trim_end_matches("/v1"))
+    } else {
+        format!("{}/messages", provider.base_url.trim_end_matches('/'))
     };
 
     let client = reqwest::Client::new();

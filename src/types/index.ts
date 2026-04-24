@@ -33,6 +33,8 @@ export interface Provider {
   isDefault: boolean;
   isBuiltin: boolean;
   isEnabled: boolean;
+  /** Wire format: 'openai' or 'anthropic'. Controls serialisation & prompt caching. */
+  apiFormat: 'openai' | 'anthropic';
   createdAt: string;
   updatedAt: string;
 }
